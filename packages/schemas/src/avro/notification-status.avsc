@@ -1,0 +1,39 @@
+{
+  "type": "record",
+  "name": "NotificationStatus",
+  "namespace": "com.notifications",
+  "doc": "Status update emitted by a consumer after processing a notification",
+  "fields": [
+    {
+      "name": "notificationId",
+      "type": "string",
+      "doc": "Matches EmailNotification.id"
+    },
+    {
+      "name": "service",
+      "type": "string",
+      "doc": "Name of the microservice that processed the notification"
+    },
+    {
+      "name": "status",
+      "type": {
+        "type": "enum",
+        "name": "DeliveryStatus",
+        "symbols": ["PENDING", "SENT", "FAILED", "BOUNCED"]
+      }
+    },
+    {
+      "name": "errorMessage",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "Present when status is FAILED or BOUNCED"
+    },
+    {
+      "name": "processedAt",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      }
+    }
+  ]
+}

@@ -1,0 +1,64 @@
+{
+  "type": "record",
+  "name": "EmailNotification",
+  "namespace": "com.notifications",
+  "doc": "A request to send an email notification",
+  "fields": [
+    {
+      "name": "id",
+      "type": "string",
+      "doc": "UUID v4 — idempotency key for deduplication on the consumer side"
+    },
+    {
+      "name": "to",
+      "type": "string",
+      "doc": "Recipient email address"
+    },
+    {
+      "name": "subject",
+      "type": "string"
+    },
+    {
+      "name": "body",
+      "type": "string",
+      "doc": "Plain-text or HTML body"
+    },
+    {
+      "name": "isHtml",
+      "type": "boolean",
+      "default": false
+    },
+    {
+      "name": "template",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "Optional template name (email-service resolves to HTML)"
+    },
+    {
+      "name": "templateData",
+      "type": {
+        "type": "map",
+        "values": "string"
+      },
+      "default": {},
+      "doc": "Key-value pairs injected into the template"
+    },
+    {
+      "name": "metadata",
+      "type": {
+        "type": "map",
+        "values": "string"
+      },
+      "default": {},
+      "doc": "Arbitrary caller-supplied metadata passed through unchanged"
+    },
+    {
+      "name": "timestamp",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      },
+      "doc": "Unix epoch milliseconds at which the gateway created this event"
+    }
+  ]
+}

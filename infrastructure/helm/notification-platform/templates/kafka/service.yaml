@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "np.labels" . | nindent 4 }}
+    {{- include "np.selectorLabels" "kafka" | nindent 4 }}
+spec:
+  selector:
+    {{- include "np.selectorLabels" "kafka" | nindent 4 }}
+  ports:
+    - name: broker
+      port: 9092
+      targetPort: 9092

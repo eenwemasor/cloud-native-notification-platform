@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: email-service
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "np.labels" . | nindent 4 }}
+    {{- include "np.selectorLabels" "email-service" | nindent 4 }}
+spec:
+  # Keep replicas <= topic partition count (3) to avoid idle consumers
+  replicas: {{ .Values.emailService.replicas }}
+  selector:
+    matchLabels:
+      {{- include "np.selectorLabels" "email-service" | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "np.labels" . | nindent 8 }}
+        {{- include "np.selectorLabels" "email-service" | nindent 8 }}
+    spec:
+      containers:
+        - name: email-service
+          image: {{ .Values.emailService.image.repository }}:{{ .Values.emailService.image.tag }}
+          imagePullPolicy: {{ .Values.emailService.image.pullPolicy }}
+          envFrom:
+            - configMapRef:
+                name: email-service-config
+          resources:
+            {{- toYaml .Values.emailService.resources | nindent 12 }}
+          livenessProbe:
+            exec:
+              command: ["node", "-e", "process.exit(0)"]
+            initialDelaySeconds: 30
+            periodSeconds: 30
+      # Allow Kafka consumer group rebalance to complete before pod is killed
+      terminationGracePeriodSeconds: 60

@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mailhog
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "np.labels" . | nindent 4 }}
+    {{- include "np.selectorLabels" "mailhog" | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "np.selectorLabels" "mailhog" | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "np.labels" . | nindent 8 }}
+        {{- include "np.selectorLabels" "mailhog" | nindent 8 }}
+    spec:
+      containers:
+        - name: mailhog
+          image: {{ .Values.mailhog.image }}
+          ports:
+            - name: smtp
+              containerPort: 1025
+            - name: ui
+              containerPort: 8025
+          resources:
+            {{- toYaml .Values.mailhog.resources | nindent 12 }}

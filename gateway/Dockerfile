@@ -26,8 +26,11 @@ COPY --from=builder /app/node_modules ./node_modules
 # path.resolve(__dirname, 'avro') in both local dev (src/) and Docker (dist/)
 COPY --from=builder /app/src/avro ./dist/avro
 
+COPY deployment/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 EXPOSE 3000
 
 USER node
 
-CMD ["node", "dist/index.js"]
+ENTRYPOINT ["/entrypoint.sh"]

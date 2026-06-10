@@ -1,0 +1,76 @@
+# ── Gateway ───────────────────────────────────────────────────────────────────
+gateway:
+  image:
+    repository: notifications/gateway
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicas: 2
+  port: 3000
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "500m"
+
+# ── Email service ──────────────────────────────────────────────────────────────
+emailService:
+  image:
+    repository: notifications/email-service
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicas: 2
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "50m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+
+# ── Kafka (KRaft — no Zookeeper) ───────────────────────────────────────────────
+kafka:
+  image: apache/kafka-native:latest
+  clusterId: "MkU3OEVBNTcwNTJENDM2Qk"
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+# ── Schema Registry ────────────────────────────────────────────────────────────
+schemaRegistry:
+  image: confluentinc/cp-schema-registry:7.6.0
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+# ── MailHog (fake SMTP for local dev) ─────────────────────────────────────────
+mailhog:
+  image: mailhog/mailhog:v1.0.1
+  resources:
+    requests:
+      memory: "64Mi"
+      cpu: "50m"
+    limits:
+      memory: "128Mi"
+      cpu: "100m"
+
+# ── SMTP config passed to email-service ───────────────────────────────────────
+smtp:
+  host: mailhog
+  port: "1025"
+  from: "notifications@example.com"
+
+# ── Ingress ───────────────────────────────────────────────────────────────────
+ingress:
+  enabled: true
+  className: nginx
+  host: notifications.local

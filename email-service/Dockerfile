@@ -22,6 +22,9 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/package.json .
 COPY --from=builder /app/node_modules ./node_modules
 
+COPY deployment/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 USER node
 
-CMD ["node", "dist/index.js"]
+ENTRYPOINT ["/entrypoint.sh"]

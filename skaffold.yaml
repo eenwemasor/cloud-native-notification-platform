@@ -1,0 +1,67 @@
+apiVersion: skaffold/v2beta29
+kind: Config
+metadata:
+  name: notification-platform
+
+# ── Registry ───────────────────────────────────────────────────────────────────
+# Skaffold prepends --default-repo to every image name at build + deploy time.
+# For kubeadm/Multipass the registry must be reachable from BOTH this host
+# (push) and the cluster nodes (pull).  Run the setup script first:
+#
+#   ./infrastructure/scripts/setup-registry.sh
+#   # prints the exact commands to run, e.g.:
+#   export SKAFFOLD_DEFAULT_REPO=192.168.64.1:5000
+#
+# Common commands:
+#   skaffold run          → build, push, deploy once
+#   skaffold dev          → watch files, rebuild and redeploy on change
+#   skaffold delete       → tear down the Helm release
+#   skaffold run --tail   → deploy and stream pod logs
+# ──────────────────────────────────────────────────────────────────────────────
+
+build:
+  artifacts:
+    - image: notifications/gateway
+      context: gateway
+      docker:
+        dockerfile: Dockerfile
+    - image: notifications/email-service
+      context: email-service
+      docker:
+        dockerfile: Dockerfile
+  local:
+    push: true   # kubeadm nodes can't access the host Docker daemon — must push
+
+deploy:
+  helm:
+    releases:
+      - name: notification-platform
+        chartPath: infrastructure/helm/notification-platform
+        namespace: notifications
+        createNamespace: true
+        # artifactOverrides + imageStrategy.helm splits the built image ref
+        # into .image.repository and .image.tag Helm values automatically.
+        artifactOverrides:
+          gateway.image: notifications/gateway
+          emailService.image: notifications/email-service
+        imageStrategy:
+          helm: {}
+        setValues:
+          # Always pull — nodes won't have the image cached locally
+          gateway.image.pullPolicy: Always
+          emailService.image.pullPolicy: Always
+
+# ── Port-forwarding (skaffold dev only) ───────────────────────────────────────
+# Tunnels cluster services to localhost so you can test without configuring
+# ingress or /etc/hosts during development.
+portForward:
+  - resourceType: service
+    resourceName: gateway
+    namespace: notifications
+    port: 80
+    localPort: 3000
+  - resourceType: service
+    resourceName: mailhog
+    namespace: notifications
+    port: 8025
+    localPort: 8025

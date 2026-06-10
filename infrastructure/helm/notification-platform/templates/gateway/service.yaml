@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "np.labels" . | nindent 4 }}
+    {{- include "np.selectorLabels" "gateway" | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "np.selectorLabels" "gateway" | nindent 4 }}
+  ports:
+    - port: 80
+      targetPort: {{ .Values.gateway.port }}
+      protocol: TCP

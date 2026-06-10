@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gateway-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "np.labels" . | nindent 4 }}
+data:
+  PORT: {{ .Values.gateway.port | quote }}
+  NODE_ENV: "production"
+  KAFKA_BROKERS: "kafka:9092"
+  SCHEMA_REGISTRY_URL: "http://schema-registry:8081"

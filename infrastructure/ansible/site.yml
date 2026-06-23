@@ -1,0 +1,52 @@
+---
+# Play 1: Install and start Harbor on the host machine
+- name: Setup host Harbor registry
+  hosts: local
+  gather_facts: true
+  roles:
+    - role: host_registry
+      tags: [registry]
+
+# Play 2: Provision Multipass VMs and populate dynamic inventory
+# Must run after Play 1 so harbor_host_ip is available in hostvars['localhost']
+- name: Provision Multipass VMs
+  hosts: local
+  gather_facts: false
+  roles:
+    - role: multipass_vms
+      tags: [vms]
+
+# Play 3: Configure all cluster nodes in parallel
+# Targets k8s_cluster which is resolved from control_plane + workers groups
+# populated by add_host calls in Play 2.
+- name: Configure all cluster nodes
+  hosts: k8s_cluster
+  gather_facts: true
+  become: true
+  serial: 0
+  roles:
+    - role: common
+      tags: [cluster]
+    - role: containerd
+      tags: [cluster]
+    - role: kubernetes
+      tags: [cluster]
+
+# Play 4: Initialize the Kubernetes control plane
+- name: Initialize control plane
+  hosts: control_plane
+  gather_facts: true
+  become: true
+  roles:
+    - role: control_plane
+      tags: [control-plane]
+
+# Play 5: Join worker nodes to the cluster
+# Depends on Play 4 having stored the join command via add_host dummy host 'cluster-facts'
+- name: Join worker nodes
+  hosts: workers
+  gather_facts: true
+  become: true
+  roles:
+    - role: worker
+      tags: [workers]

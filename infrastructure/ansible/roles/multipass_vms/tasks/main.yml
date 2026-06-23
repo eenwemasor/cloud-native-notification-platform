@@ -1,0 +1,110 @@
+---
+# ---------------------------------------------------------------------------
+# 1. Determine which VMs already exist
+# ---------------------------------------------------------------------------
+- name: List existing Multipass VMs
+  ansible.builtin.command: multipass list --format json
+  register: multipass_list_result
+  changed_when: false
+  tags: [vms]
+
+- name: Set fact — existing VM names
+  ansible.builtin.set_fact:
+    existing_vm_names: >-
+      {{ (multipass_list_result.stdout | from_json).list
+         | map(attribute='name') | list }}
+  tags: [vms]
+
+# ---------------------------------------------------------------------------
+# 2. Launch VMs that do not yet exist
+# ---------------------------------------------------------------------------
+- name: Launch missing Multipass VMs
+  ansible.builtin.command: >
+    multipass launch {{ multipass_ubuntu_release }}
+    --name {{ item.name }}
+    --cpus {{ item.cpus }}
+    --memory {{ item.mem }}
+    --disk {{ item.disk }}
+  loop: "{{ multipass_vms }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: item.name not in existing_vm_names
+  tags: [vms]
+
+# ---------------------------------------------------------------------------
+# 3. Wait for all VMs to reach Running state
+# ---------------------------------------------------------------------------
+- name: Wait for all VMs to be Running
+  ansible.builtin.command: multipass list --format json
+  register: vm_status_result
+  changed_when: false
+  until: >-
+    multipass_vms | map(attribute='name') | list |
+    difference(
+      (vm_status_result.stdout | from_json).list
+      | selectattr('state', 'equalto', 'Running')
+      | map(attribute='name') | list
+    ) | length == 0
+  retries: 30
+  delay: 10
+  tags: [vms]
+
+# ---------------------------------------------------------------------------
+# 4. Collect IP addresses for each VM
+# ---------------------------------------------------------------------------
+- name: Get IP for each VM
+  ansible.builtin.command: multipass info {{ item.name }} --format json
+  register: vm_info_results
+  loop: "{{ multipass_vms }}"
+  loop_control:
+    label: "{{ item.name }}"
+  changed_when: false
+  tags: [vms]
+
+- name: Build VM name → IP mapping
+  ansible.builtin.set_fact:
+    vm_ip_map: >-
+      {{ vm_ip_map | default({}) | combine(
+           { item.item.name:
+               (item.stdout | from_json).info[item.item.name].ipv4[0]
+           }
+         )
+      }}
+  loop: "{{ vm_info_results.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  tags: [vms]
+
+# ---------------------------------------------------------------------------
+# 5. Populate dynamic in-memory inventory
+# ---------------------------------------------------------------------------
+- name: Add control-plane VM to inventory
+  ansible.builtin.add_host:
+    name: "{{ vm_ip_map['control-plane'] }}"
+    groups: control_plane
+    ansible_user: ubuntu
+    ansible_ssh_private_key_file: "{{ multipass_ssh_key }}"
+    # Disable host-key checking for newly created VMs whose keys are not yet
+    # in known_hosts. Acceptable for a local development cluster.
+    ansible_ssh_common_args: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+  tags: [vms]
+
+- name: Add worker VMs to inventory
+  ansible.builtin.add_host:
+    name: "{{ vm_ip_map[item.name] }}"
+    groups: workers
+    ansible_user: ubuntu
+    ansible_ssh_private_key_file: "{{ multipass_ssh_key }}"
+    ansible_ssh_common_args: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+  loop: "{{ multipass_vms | selectattr('name', 'ne', 'control-plane') | list }}"
+  loop_control:
+    label: "{{ item.name }}"
+  tags: [vms]
+
+- name: Show VM inventory summary
+  ansible.builtin.debug:
+    msg:
+      - "control-plane: {{ vm_ip_map['control-plane'] }}"
+      - "worker1: {{ vm_ip_map['worker1'] }}"
+      - "worker2: {{ vm_ip_map['worker2'] }}"
+  tags: [vms]

@@ -1,0 +1,70 @@
+---
+# ---------------------------------------------------------------------------
+# 1. Install containerd
+# ---------------------------------------------------------------------------
+- name: Install containerd
+  ansible.builtin.apt:
+    name: containerd
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  tags: [cluster]
+
+# ---------------------------------------------------------------------------
+# 2. Generate default config and enable SystemdCgroup
+# ---------------------------------------------------------------------------
+- name: Ensure /etc/containerd directory exists
+  ansible.builtin.file:
+    path: /etc/containerd
+    state: directory
+    mode: "0755"
+  tags: [cluster]
+
+- name: Check if containerd config already exists
+  ansible.builtin.stat:
+    path: /etc/containerd/config.toml
+  register: containerd_config_stat
+  tags: [cluster]
+
+- name: Generate default containerd config
+  ansible.builtin.shell: containerd config default > /etc/containerd/config.toml
+  when: not containerd_config_stat.stat.exists
+  notify: restart containerd
+  tags: [cluster]
+
+- name: Enable SystemdCgroup in containerd config
+  ansible.builtin.replace:
+    path: /etc/containerd/config.toml
+    regexp: 'SystemdCgroup = false'
+    replace: 'SystemdCgroup = true'
+  notify: restart containerd
+  tags: [cluster]
+
+# ---------------------------------------------------------------------------
+# 3. Configure Harbor registry for plain-HTTP pulls
+#    Uses the per-registry hosts.toml approach (containerd v1.6+)
+# ---------------------------------------------------------------------------
+- name: Create containerd certs.d directory for Harbor
+  ansible.builtin.file:
+    path: "/etc/containerd/certs.d/{{ hostvars['localhost']['harbor_host_ip'] }}:{{ harbor_port }}"
+    state: directory
+    mode: "0755"
+  tags: [cluster]
+
+- name: Template Harbor hosts.toml for containerd
+  ansible.builtin.template:
+    src: hosts.toml.j2
+    dest: "/etc/containerd/certs.d/{{ hostvars['localhost']['harbor_host_ip'] }}:{{ harbor_port }}/hosts.toml"
+    mode: "0644"
+  notify: restart containerd
+  tags: [cluster]
+
+# ---------------------------------------------------------------------------
+# 4. Enable and start containerd
+# ---------------------------------------------------------------------------
+- name: Enable and start containerd
+  ansible.builtin.systemd:
+    name: containerd
+    enabled: true
+    state: started
+  tags: [cluster]

@@ -1,0 +1,96 @@
+---
+# ---------------------------------------------------------------------------
+# 1. Initialize the control plane (idempotent — skip if already done)
+# ---------------------------------------------------------------------------
+- name: Check if kubeadm has already been initialized
+  ansible.builtin.stat:
+    path: /etc/kubernetes/admin.conf
+  register: kubeadm_init_stat
+  tags: [control-plane]
+
+- name: Run kubeadm init
+  ansible.builtin.command: >
+    kubeadm init
+    --pod-network-cidr={{ pod_network_cidr }}
+  when: not kubeadm_init_stat.stat.exists
+  tags: [control-plane]
+
+# ---------------------------------------------------------------------------
+# 2. Configure kubectl for the ubuntu user
+# ---------------------------------------------------------------------------
+- name: Create .kube directory for ubuntu user
+  ansible.builtin.file:
+    path: /home/ubuntu/.kube
+    state: directory
+    owner: ubuntu
+    group: ubuntu
+    mode: "0700"
+  tags: [control-plane]
+
+- name: Copy admin.conf to ubuntu's kubeconfig
+  ansible.builtin.copy:
+    src: /etc/kubernetes/admin.conf
+    dest: /home/ubuntu/.kube/config
+    remote_src: true
+    owner: ubuntu
+    group: ubuntu
+    mode: "0600"
+  tags: [control-plane]
+
+# ---------------------------------------------------------------------------
+# 3. Install Flannel CNI
+# ---------------------------------------------------------------------------
+- name: Apply Flannel CNI manifest
+  ansible.builtin.command: >
+    kubectl apply -f
+    https://raw.githubusercontent.com/flannel-io/flannel/master/Documentation/kube-flannel.yml
+  become_user: ubuntu
+  environment:
+    KUBECONFIG: /home/ubuntu/.kube/config
+  changed_when: true
+  tags: [control-plane]
+
+# ---------------------------------------------------------------------------
+# 4. Wait for the control-plane node to reach Ready state
+# ---------------------------------------------------------------------------
+- name: Wait for control-plane node to be Ready
+  ansible.builtin.command: >
+    kubectl get node {{ ansible_hostname }}
+    -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
+  register: node_ready_result
+  until: node_ready_result.stdout == "True"
+  retries: 20
+  delay: 15
+  changed_when: false
+  become_user: ubuntu
+  environment:
+    KUBECONFIG: /home/ubuntu/.kube/config
+  tags: [control-plane]
+
+# ---------------------------------------------------------------------------
+# 5. Generate the join command and share it via a dummy inventory host
+# ---------------------------------------------------------------------------
+- name: Generate kubeadm join command
+  ansible.builtin.command: kubeadm token create --print-join-command
+  register: join_command_result
+  changed_when: false
+  tags: [control-plane]
+
+# Store the join command on a dummy in-memory host so worker nodes in the
+# next play can access it via hostvars['cluster-facts']['kubeadm_join_command'].
+- name: Publish join command to dummy inventory host
+  ansible.builtin.add_host:
+    name: cluster-facts
+    kubeadm_join_command: "{{ join_command_result.stdout }}"
+  changed_when: false
+  tags: [control-plane]
+
+# ---------------------------------------------------------------------------
+# 6. Fetch kubeconfig back to the host machine
+# ---------------------------------------------------------------------------
+- name: Fetch kubeconfig to host at ~/.kube/config-multipass
+  ansible.builtin.fetch:
+    src: /home/ubuntu/.kube/config
+    dest: "{{ lookup('env', 'HOME') }}/.kube/config-multipass"
+    flat: true
+  tags: [control-plane]

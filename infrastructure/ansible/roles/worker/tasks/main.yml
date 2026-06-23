@@ -1,0 +1,33 @@
+---
+# ---------------------------------------------------------------------------
+# 1. Join the cluster (idempotent — skip if already joined)
+# ---------------------------------------------------------------------------
+- name: Check if this node has already joined the cluster
+  ansible.builtin.stat:
+    path: /etc/kubernetes/kubelet.conf
+  register: kubelet_conf_stat
+  tags: [workers]
+
+- name: Join cluster using kubeadm join command from control plane
+  ansible.builtin.command: "{{ hostvars['cluster-facts']['kubeadm_join_command'] }}"
+  when: not kubelet_conf_stat.stat.exists
+  tags: [workers]
+
+# ---------------------------------------------------------------------------
+# 2. Wait until this node is Ready (checked from the control-plane node)
+# ---------------------------------------------------------------------------
+- name: Wait for worker node to reach Ready state
+  ansible.builtin.command: >
+    kubectl get node {{ ansible_hostname }}
+    -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
+  register: worker_ready_result
+  until: worker_ready_result.stdout == "True"
+  retries: 20
+  delay: 15
+  changed_when: false
+  # Delegate to the control-plane node because only it has kubectl configured.
+  delegate_to: "{{ groups['control_plane'][0] }}"
+  become_user: ubuntu
+  environment:
+    KUBECONFIG: /home/ubuntu/.kube/config
+  tags: [workers]

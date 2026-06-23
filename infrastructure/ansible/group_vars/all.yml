@@ -1,0 +1,41 @@
+---
+# Kubernetes
+k8s_version: "1.29"
+pod_network_cidr: "10.244.0.0/16"
+
+# Harbor registry
+harbor_version: "2.10.0"
+harbor_install_dir: "/opt/harbor"
+harbor_installer_dir: "/opt/harbor-installer"
+harbor_data_dir: "/opt/harbor/data"
+harbor_admin_password: "Harbor12345"
+harbor_project_name: "local"
+harbor_port: 80
+
+# SSH key used to connect to Multipass VMs.
+# The corresponding public key must be authorized on the VMs.
+# Multipass injects ~/.ssh/id_rsa.pub by default; adjust if you use a different key.
+#
+# Alternative — Multipass system key (Linux snap):
+#   /var/snap/multipass/common/data/multipassd/ssh-keys/id_rsa
+# Alternative — Multipass system key (macOS):
+#   /var/root/Library/Application Support/multipassd/ssh-keys/id_rsa
+multipass_ssh_key: "~/.ssh/ansible"
+
+# Ubuntu release image for Multipass VMs
+multipass_ubuntu_release: "24.04"
+
+# VM definitions
+multipass_vms:
+  - name: control-plane
+    cpus: 2
+    mem: 4G
+    disk: 20G
+  - name: worker1
+    cpus: 2
+    mem: 2G
+    disk: 15G
+  - name: worker2
+    cpus: 2
+    mem: 2G
+    disk: 15G

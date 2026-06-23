@@ -1,0 +1,178 @@
+---
+# ---------------------------------------------------------------------------
+# 1. Detect the host IP that Multipass VMs use to reach the host machine
+# ---------------------------------------------------------------------------
+- name: Get bridge IP on Linux (mpqemubr0)
+  ansible.builtin.command: ip -json addr show mpqemubr0
+  register: linux_bridge_info
+  changed_when: false
+  failed_when: false
+  when: ansible_system == 'Linux'
+  tags: [registry]
+
+- name: Get primary IP on macOS (en0)
+  ansible.builtin.command: ipconfig getifaddr en0
+  register: macos_ip_info
+  changed_when: false
+  failed_when: false
+  when: ansible_system == 'Darwin'
+  tags: [registry]
+
+- name: Set harbor_host_ip fact (Linux)
+  ansible.builtin.set_fact:
+    harbor_host_ip: >-
+      {{ (linux_bridge_info.stdout | from_json)[0].addr_info
+         | selectattr('family', 'equalto', 'inet')
+         | map(attribute='local')
+         | first }}
+    cacheable: true
+  when: ansible_system == 'Linux'
+  tags: [registry]
+
+- name: Set harbor_host_ip fact (macOS)
+  ansible.builtin.set_fact:
+    harbor_host_ip: "{{ macos_ip_info.stdout | trim }}"
+    cacheable: true
+  when: ansible_system == 'Darwin'
+  tags: [registry]
+
+- name: Show detected Harbor host IP
+  ansible.builtin.debug:
+    msg: "Harbor will be accessible at {{ harbor_host_ip }}:{{ harbor_port }}"
+  tags: [registry]
+
+# ---------------------------------------------------------------------------
+# 2. Install Docker (Linux only — macOS users should have Docker Desktop)
+# ---------------------------------------------------------------------------
+- name: Check if Docker is already installed (Linux)
+  ansible.builtin.command: docker info
+  register: docker_info_result
+  changed_when: false
+  failed_when: false
+  when: ansible_system == 'Linux'
+  tags: [registry]
+
+- name: Install Docker and Docker Compose plugin (Linux)
+  ansible.builtin.apt:
+    name:
+      - docker.io
+      - docker-compose-plugin
+    state: present
+    update_cache: true
+  when:
+    - ansible_system == 'Linux'
+    - docker_info_result.rc != 0
+  tags: [registry]
+
+- name: Ensure Docker service is running (Linux)
+  ansible.builtin.systemd:
+    name: docker
+    enabled: true
+    state: started
+  when: ansible_system == 'Linux'
+  tags: [registry]
+
+- name: Notice — macOS Docker Desktop required
+  ansible.builtin.debug:
+    msg: "macOS detected: ensure Docker Desktop is running before continuing."
+  when: ansible_system == 'Darwin'
+  tags: [registry]
+
+# ---------------------------------------------------------------------------
+# 3. Download and extract the Harbor offline installer
+# ---------------------------------------------------------------------------
+- name: Create Harbor installer directory
+  ansible.builtin.file:
+    path: "{{ harbor_installer_dir }}"
+    state: directory
+    mode: "0755"
+  tags: [registry]
+
+- name: Download Harbor offline installer
+  ansible.builtin.get_url:
+    url: "https://github.com/goharbor/harbor/releases/download/v{{ harbor_version }}/harbor-offline-installer-v{{ harbor_version }}.tgz"
+    dest: "{{ harbor_installer_dir }}/harbor-offline-installer-v{{ harbor_version }}.tgz"
+    mode: "0644"
+  tags: [registry]
+
+- name: Extract Harbor installer
+  ansible.builtin.unarchive:
+    src: "{{ harbor_installer_dir }}/harbor-offline-installer-v{{ harbor_version }}.tgz"
+    dest: /opt/
+    remote_src: false
+    creates: "{{ harbor_install_dir }}/install.sh"
+  tags: [registry]
+
+# ---------------------------------------------------------------------------
+# 4. Template harbor.yml configuration
+# ---------------------------------------------------------------------------
+- name: Template harbor.yml
+  ansible.builtin.template:
+    src: harbor.yml.j2
+    dest: "{{ harbor_install_dir }}/harbor.yml"
+    mode: "0640"
+  notify: restart harbor
+  tags: [registry]
+
+# ---------------------------------------------------------------------------
+# 5. Start Harbor (idempotent — skip if harbor-core container is already up)
+# ---------------------------------------------------------------------------
+- name: Check if harbor-core container is running
+  ansible.builtin.command: docker inspect --format "{{ '{{' }}.State.Running{{ '}}' }}" harbor-core
+  register: harbor_core_running
+  changed_when: false
+  failed_when: false
+  tags: [registry]
+
+- name: Run Harbor install.sh
+  ansible.builtin.command: ./install.sh
+  args:
+    chdir: "{{ harbor_install_dir }}"
+  when: >
+    harbor_core_running.rc != 0 or
+    harbor_core_running.stdout | trim != 'true'
+  tags: [registry]
+
+# ---------------------------------------------------------------------------
+# 6. Wait for Harbor to be reachable
+# ---------------------------------------------------------------------------
+- name: Wait for Harbor portal to be reachable
+  ansible.builtin.uri:
+    url: "http://{{ harbor_host_ip }}:{{ harbor_port }}"
+    status_code: [200, 301, 302]
+    follow_redirects: safe
+  register: harbor_health
+  until: harbor_health.status in [200, 301, 302]
+  retries: 30
+  delay: 10
+  tags: [registry]
+
+# ---------------------------------------------------------------------------
+# 7. Create the 'local' Harbor project if it does not already exist
+# ---------------------------------------------------------------------------
+- name: Check if Harbor project '{{ harbor_project_name }}' exists
+  ansible.builtin.uri:
+    url: "http://{{ harbor_host_ip }}:{{ harbor_port }}/api/v2.0/projects?name={{ harbor_project_name }}"
+    method: GET
+    user: admin
+    password: "{{ harbor_admin_password }}"
+    force_basic_auth: true
+    status_code: 200
+    return_content: true
+  register: harbor_project_check
+  tags: [registry]
+
+- name: Create Harbor project '{{ harbor_project_name }}'
+  ansible.builtin.uri:
+    url: "http://{{ harbor_host_ip }}:{{ harbor_port }}/api/v2.0/projects"
+    method: POST
+    user: admin
+    password: "{{ harbor_admin_password }}"
+    force_basic_auth: true
+    body_format: json
+    body:
+      project_name: "{{ harbor_project_name }}"
+      public: true
+    status_code: [201, 409]
+  when: (harbor_project_check.json | length) == 0
+  tags: [registry]

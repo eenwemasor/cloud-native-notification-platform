@@ -24,10 +24,14 @@ async function main(): Promise<void> {
   const producer = new NotificationProducer(kafka, registry, "at-least-once");
   await producer.connect();
 
+  console.log("[gateway] Kafka topics ensured, schemas registered");
+
   const app = createApp(producer);
 
   const server = app.listen(config.port, () => {
-    console.log(`[gateway] Listening on port ${config.port} (${config.nodeEnv})`);
+    console.log(
+      `[gateway] Listening on port ${config.port} (${config.nodeEnv})`,
+    );
   });
 
   const shutdown = async (signal: string): Promise<void> => {
@@ -66,7 +70,10 @@ async function registerSchemas(registry: SchemaRegistry): Promise<void> {
       .replace(/^-/, "")}-value`;
 
     try {
-      const { id } = await registry.register({ type: SchemaType.AVRO, schema: raw }, { subject });
+      const { id } = await registry.register(
+        { type: SchemaType.AVRO, schema: raw },
+        { subject },
+      );
       console.log(`[registry] Registered ${subject} as id=${id}`);
     } catch (err: any) {
       if (!err.message?.includes("already exists")) throw err;

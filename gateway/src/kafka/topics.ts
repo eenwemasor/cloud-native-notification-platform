@@ -1,7 +1,7 @@
 import { Kafka } from "kafkajs";
 
 export const TOPICS = {
-  EMAIL_NOTIFICATIONS: "notifications.email",
+  EMAIL_NOTIFICATIONS: "email.notification",
   NOTIFICATION_STATUS: "notifications.status",
 } as const;
 

@@ -13,7 +13,11 @@ export class NotificationProducer {
   private emailSchemaId: number | null = null;
   private readonly mode: DeliveryMode;
 
-  constructor(kafka: Kafka, registry: SchemaRegistry, mode: DeliveryMode = "at-least-once") {
+  constructor(
+    kafka: Kafka,
+    registry: SchemaRegistry,
+    mode: DeliveryMode = "at-least-once",
+  ) {
     this.kafka = kafka;
     this.registry = registry;
     this.mode = mode;
@@ -33,23 +37,27 @@ export class NotificationProducer {
     }
 
     await this.producer.connect();
-
+    console.log(
+      `[producer] Connecting (${this.mode})`,
+      `notifications.${TOPICS.EMAIL_NOTIFICATIONS.replace(/\./g, "-")}-value`,
+    );
     this.emailSchemaId = await this.registry.getLatestSchemaId(
-      `${TOPICS.EMAIL_NOTIFICATIONS}-value`
+      `notifications.${TOPICS.EMAIL_NOTIFICATIONS.replace(/\./g, "-")}-value`,
     );
 
     console.log(
-      `[producer] Connected (${this.mode}), emailSchemaId=${this.emailSchemaId}`
+      `[producer] Connected (${this.mode}), emailSchemaId=${this.emailSchemaId}`,
     );
   }
 
   async sendEmailNotification(notification: EmailNotification): Promise<void> {
-    if (!this.producer) throw new Error("Producer not connected — call connect() first");
+    if (!this.producer)
+      throw new Error("Producer not connected — call connect() first");
     if (this.emailSchemaId === null) throw new Error("Schema ID not cached");
 
     const encodedValue = await this.registry.encode(
       this.emailSchemaId,
-      notification
+      notification,
     );
 
     const message: Message = {

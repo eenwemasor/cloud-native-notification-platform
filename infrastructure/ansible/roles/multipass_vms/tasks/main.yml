@@ -4,14 +4,14 @@
 # ---------------------------------------------------------------------------
 - name: List existing Multipass VMs
   ansible.builtin.command: multipass list --format json
-  register: multipass_list_result
+  register: multipass_vms_list
   changed_when: false
   tags: [vms]
 
 - name: Set fact — existing VM names
   ansible.builtin.set_fact:
-    existing_vm_names: >-
-      {{ (multipass_list_result.stdout | from_json).list
+    multipass_vms_existing_names: >-
+      {{ (multipass_vms_list.stdout | from_json).list
          | map(attribute='name') | list }}
   tags: [vms]
 
@@ -28,7 +28,8 @@
   loop: "{{ multipass_vms }}"
   loop_control:
     label: "{{ item.name }}"
-  when: item.name not in existing_vm_names
+  when: item.name not in multipass_vms_existing_names
+  changed_when: item.name not in multipass_vms_existing_names
   tags: [vms]
 
 # ---------------------------------------------------------------------------
@@ -36,12 +37,12 @@
 # ---------------------------------------------------------------------------
 - name: Wait for all VMs to be Running
   ansible.builtin.command: multipass list --format json
-  register: vm_status_result
+  register: multipass_vms_status
   changed_when: false
   until: >-
     multipass_vms | map(attribute='name') | list |
     difference(
-      (vm_status_result.stdout | from_json).list
+      (multipass_vms_status.stdout | from_json).list
       | selectattr('state', 'equalto', 'Running')
       | map(attribute='name') | list
     ) | length == 0
@@ -54,7 +55,7 @@
 # ---------------------------------------------------------------------------
 - name: Get IP for each VM
   ansible.builtin.command: multipass info {{ item.name }} --format json
-  register: vm_info_results
+  register: multipass_vms_info
   loop: "{{ multipass_vms }}"
   loop_control:
     label: "{{ item.name }}"
@@ -63,14 +64,14 @@
 
 - name: Build VM name → IP mapping
   ansible.builtin.set_fact:
-    vm_ip_map: >-
-      {{ vm_ip_map | default({}) | combine(
+    multipass_vms_ip_map: >-
+      {{ multipass_vms_ip_map | default({}) | combine(
            { item.item.name:
                (item.stdout | from_json).info[item.item.name].ipv4[0]
            }
          )
       }}
-  loop: "{{ vm_info_results.results }}"
+  loop: "{{ multipass_vms_info.results }}"
   loop_control:
     label: "{{ item.item.name }}"
   tags: [vms]
@@ -80,7 +81,7 @@
 # ---------------------------------------------------------------------------
 - name: Add control-plane VM to inventory
   ansible.builtin.add_host:
-    name: "{{ vm_ip_map['control-plane'] }}"
+    name: "{{ multipass_vms_ip_map['control-plane'] }}"
     groups: control_plane
     ansible_user: ubuntu
     ansible_ssh_private_key_file: "{{ multipass_ssh_key }}"
@@ -91,7 +92,7 @@
 
 - name: Add worker VMs to inventory
   ansible.builtin.add_host:
-    name: "{{ vm_ip_map[item.name] }}"
+    name: "{{ multipass_vms_ip_map[item.name] }}"
     groups: workers
     ansible_user: ubuntu
     ansible_ssh_private_key_file: "{{ multipass_ssh_key }}"
@@ -104,7 +105,7 @@
 - name: Show VM inventory summary
   ansible.builtin.debug:
     msg:
-      - "control-plane: {{ vm_ip_map['control-plane'] }}"
-      - "worker1: {{ vm_ip_map['worker1'] }}"
-      - "worker2: {{ vm_ip_map['worker2'] }}"
+      - "control-plane: {{ multipass_vms_ip_map['control-plane'] }}"
+      - "worker1: {{ multipass_vms_ip_map['worker1'] }}"
+      - "worker2: {{ multipass_vms_ip_map['worker2'] }}"
   tags: [vms]

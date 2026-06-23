@@ -5,12 +5,13 @@
 - name: Check if this node has already joined the cluster
   ansible.builtin.stat:
     path: /etc/kubernetes/kubelet.conf
-  register: kubelet_conf_stat
+  register: worker_kubelet_conf_stat
   tags: [workers]
 
 - name: Join cluster using kubeadm join command from control plane
   ansible.builtin.command: "{{ hostvars['cluster-facts']['kubeadm_join_command'] }}"
-  when: not kubelet_conf_stat.stat.exists
+  when: not worker_kubelet_conf_stat.stat.exists
+  changed_when: not worker_kubelet_conf_stat.stat.exists
   tags: [workers]
 
 # ---------------------------------------------------------------------------
@@ -27,6 +28,7 @@
   changed_when: false
   # Delegate to the control-plane node because only it has kubectl configured.
   delegate_to: "{{ groups['control_plane'][0] }}"
+  become: true
   become_user: ubuntu
   environment:
     KUBECONFIG: /home/ubuntu/.kube/config

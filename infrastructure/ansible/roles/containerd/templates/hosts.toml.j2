@@ -4,8 +4,8 @@
 # Instructs containerd to reach this registry over plain HTTP without
 # TLS verification. Suitable for local development only.
 
-server = "http://{{ hostvars['localhost']['harbor_host_ip'] }}:{{ harbor_port }}"
+server = "http://{{ hostvars['localhost']['host_registry_host_ip'] }}:{{ harbor_port }}"
 
-[host."http://{{ hostvars['localhost']['harbor_host_ip'] }}:{{ harbor_port }}"]
+[host."http://{{ hostvars['localhost']['host_registry_host_ip'] }}:{{ harbor_port }}"]
   capabilities = ["pull", "resolve"]
   skip_verify = true

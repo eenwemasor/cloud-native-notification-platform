@@ -9,12 +9,20 @@
     mode: "0755"
   tags: [cluster]
 
-- name: Download and dearmor Kubernetes GPG key
-  ansible.builtin.shell: |
-    curl -fsSL https://pkgs.k8s.io/core:/stable:/v{{ k8s_version }}/deb/Release.key \
-      | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+- name: Download Kubernetes apt signing key (armored)
+  ansible.builtin.get_url:
+    url: "https://pkgs.k8s.io/core:/stable:/v{{ k8s_version }}/deb/Release.key"
+    dest: /etc/apt/keyrings/kubernetes-apt-keyring.asc
+    mode: "0644"
+  tags: [cluster]
+
+- name: Dearmor Kubernetes apt signing key
+  ansible.builtin.command: >
+    gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+    /etc/apt/keyrings/kubernetes-apt-keyring.asc
   args:
     creates: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+  changed_when: false
   tags: [cluster]
 
 - name: Add Kubernetes apt repository

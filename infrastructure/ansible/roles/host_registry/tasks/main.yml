@@ -4,7 +4,7 @@
 # ---------------------------------------------------------------------------
 - name: Get bridge IP on Linux (mpqemubr0)
   ansible.builtin.command: ip -json addr show mpqemubr0
-  register: linux_bridge_info
+  register: host_registry_linux_bridge
   changed_when: false
   failed_when: false
   when: ansible_system == 'Linux'
@@ -12,16 +12,16 @@
 
 - name: Get primary IP on macOS (en0)
   ansible.builtin.command: ipconfig getifaddr en0
-  register: macos_ip_info
+  register: host_registry_macos_ip
   changed_when: false
   failed_when: false
   when: ansible_system == 'Darwin'
   tags: [registry]
 
-- name: Set harbor_host_ip fact (Linux)
+- name: Set host_registry_host_ip fact (Linux)
   ansible.builtin.set_fact:
-    harbor_host_ip: >-
-      {{ (linux_bridge_info.stdout | from_json)[0].addr_info
+    host_registry_host_ip: >-
+      {{ (host_registry_linux_bridge.stdout | from_json)[0].addr_info
          | selectattr('family', 'equalto', 'inet')
          | map(attribute='local')
          | first }}
@@ -29,16 +29,16 @@
   when: ansible_system == 'Linux'
   tags: [registry]
 
-- name: Set harbor_host_ip fact (macOS)
+- name: Set host_registry_host_ip fact (macOS)
   ansible.builtin.set_fact:
-    harbor_host_ip: "{{ macos_ip_info.stdout | trim }}"
+    host_registry_host_ip: "{{ host_registry_macos_ip.stdout | trim }}"
     cacheable: true
   when: ansible_system == 'Darwin'
   tags: [registry]
 
 - name: Show detected Harbor host IP
   ansible.builtin.debug:
-    msg: "Harbor will be accessible at {{ harbor_host_ip }}:{{ harbor_port }}"
+    msg: "Harbor will be accessible at {{ host_registry_host_ip }}:{{ harbor_port }}"
   tags: [registry]
 
 # ---------------------------------------------------------------------------
@@ -46,7 +46,7 @@
 # ---------------------------------------------------------------------------
 - name: Check if Docker is already installed (Linux)
   ansible.builtin.command: docker info
-  register: docker_info_result
+  register: host_registry_docker_info
   changed_when: false
   failed_when: false
   when: ansible_system == 'Linux'
@@ -61,7 +61,7 @@
     update_cache: true
   when:
     - ansible_system == 'Linux'
-    - docker_info_result.rc != 0
+    - host_registry_docker_info.rc != 0
   tags: [registry]
 
 - name: Ensure Docker service is running (Linux)
@@ -111,7 +111,7 @@
     src: harbor.yml.j2
     dest: "{{ harbor_install_dir }}/harbor.yml"
     mode: "0640"
-  notify: restart harbor
+  notify: Restart Harbor
   tags: [registry]
 
 # ---------------------------------------------------------------------------
@@ -119,7 +119,7 @@
 # ---------------------------------------------------------------------------
 - name: Check if harbor-core container is running
   ansible.builtin.command: docker inspect --format "{{ '{{' }}.State.Running{{ '}}' }}" harbor-core
-  register: harbor_core_running
+  register: host_registry_core_running
   changed_when: false
   failed_when: false
   tags: [registry]
@@ -129,8 +129,11 @@
   args:
     chdir: "{{ harbor_install_dir }}"
   when: >
-    harbor_core_running.rc != 0 or
-    harbor_core_running.stdout | trim != 'true'
+    host_registry_core_running.rc != 0 or
+    host_registry_core_running.stdout | trim != 'true'
+  changed_when: >
+    host_registry_core_running.rc != 0 or
+    host_registry_core_running.stdout | trim != 'true'
   tags: [registry]
 
 # ---------------------------------------------------------------------------
@@ -138,11 +141,11 @@
 # ---------------------------------------------------------------------------
 - name: Wait for Harbor portal to be reachable
   ansible.builtin.uri:
-    url: "http://{{ harbor_host_ip }}:{{ harbor_port }}"
+    url: "http://{{ host_registry_host_ip }}:{{ harbor_port }}"
     status_code: [200, 301, 302]
     follow_redirects: safe
-  register: harbor_health
-  until: harbor_health.status in [200, 301, 302]
+  register: host_registry_health
+  until: host_registry_health.status in [200, 301, 302]
   retries: 30
   delay: 10
   tags: [registry]
@@ -150,21 +153,21 @@
 # ---------------------------------------------------------------------------
 # 7. Create the 'local' Harbor project if it does not already exist
 # ---------------------------------------------------------------------------
-- name: Check if Harbor project '{{ harbor_project_name }}' exists
+- name: Check if Harbor project exists
   ansible.builtin.uri:
-    url: "http://{{ harbor_host_ip }}:{{ harbor_port }}/api/v2.0/projects?name={{ harbor_project_name }}"
+    url: "http://{{ host_registry_host_ip }}:{{ harbor_port }}/api/v2.0/projects?name={{ harbor_project_name }}"
     method: GET
     user: admin
     password: "{{ harbor_admin_password }}"
     force_basic_auth: true
     status_code: 200
     return_content: true
-  register: harbor_project_check
+  register: host_registry_project_check
   tags: [registry]
 
 - name: Create Harbor project '{{ harbor_project_name }}'
   ansible.builtin.uri:
-    url: "http://{{ harbor_host_ip }}:{{ harbor_port }}/api/v2.0/projects"
+    url: "http://{{ host_registry_host_ip }}:{{ harbor_port }}/api/v2.0/projects"
     method: POST
     user: admin
     password: "{{ harbor_admin_password }}"
@@ -174,5 +177,5 @@
       project_name: "{{ harbor_project_name }}"
       public: true
     status_code: [201, 409]
-  when: (harbor_project_check.json | length) == 0
+  when: (host_registry_project_check.json | length) == 0
   tags: [registry]

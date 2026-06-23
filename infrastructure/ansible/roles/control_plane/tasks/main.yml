@@ -5,14 +5,15 @@
 - name: Check if kubeadm has already been initialized
   ansible.builtin.stat:
     path: /etc/kubernetes/admin.conf
-  register: kubeadm_init_stat
+  register: control_plane_init_stat
   tags: [control-plane]
 
 - name: Run kubeadm init
   ansible.builtin.command: >
     kubeadm init
     --pod-network-cidr={{ pod_network_cidr }}
-  when: not kubeadm_init_stat.stat.exists
+  when: not control_plane_init_stat.stat.exists
+  changed_when: not control_plane_init_stat.stat.exists
   tags: [control-plane]
 
 # ---------------------------------------------------------------------------
@@ -44,6 +45,7 @@
   ansible.builtin.command: >
     kubectl apply -f
     https://raw.githubusercontent.com/flannel-io/flannel/master/Documentation/kube-flannel.yml
+  become: true
   become_user: ubuntu
   environment:
     KUBECONFIG: /home/ubuntu/.kube/config
@@ -57,11 +59,12 @@
   ansible.builtin.command: >
     kubectl get node {{ ansible_hostname }}
     -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
-  register: node_ready_result
-  until: node_ready_result.stdout == "True"
+  register: control_plane_node_ready
+  until: control_plane_node_ready.stdout == "True"
   retries: 20
   delay: 15
   changed_when: false
+  become: true
   become_user: ubuntu
   environment:
     KUBECONFIG: /home/ubuntu/.kube/config
@@ -72,7 +75,7 @@
 # ---------------------------------------------------------------------------
 - name: Generate kubeadm join command
   ansible.builtin.command: kubeadm token create --print-join-command
-  register: join_command_result
+  register: control_plane_join_command
   changed_when: false
   tags: [control-plane]
 
@@ -81,7 +84,7 @@
 - name: Publish join command to dummy inventory host
   ansible.builtin.add_host:
     name: cluster-facts
-    kubeadm_join_command: "{{ join_command_result.stdout }}"
+    kubeadm_join_command: "{{ control_plane_join_command.stdout }}"
   changed_when: false
   tags: [control-plane]
 

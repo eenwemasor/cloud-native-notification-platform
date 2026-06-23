@@ -29,7 +29,8 @@
 - name: Generate default containerd config
   ansible.builtin.shell: containerd config default > /etc/containerd/config.toml
   when: not containerd_config_stat.stat.exists
-  notify: restart containerd
+  changed_when: not containerd_config_stat.stat.exists
+  notify: Restart Containerd
   tags: [cluster]
 
 - name: Enable SystemdCgroup in containerd config
@@ -37,7 +38,7 @@
     path: /etc/containerd/config.toml
     regexp: 'SystemdCgroup = false'
     replace: 'SystemdCgroup = true'
-  notify: restart containerd
+  notify: Restart Containerd
   tags: [cluster]
 
 # ---------------------------------------------------------------------------
@@ -46,7 +47,7 @@
 # ---------------------------------------------------------------------------
 - name: Create containerd certs.d directory for Harbor
   ansible.builtin.file:
-    path: "/etc/containerd/certs.d/{{ hostvars['localhost']['harbor_host_ip'] }}:{{ harbor_port }}"
+    path: "/etc/containerd/certs.d/{{ hostvars['localhost']['host_registry_host_ip'] }}:{{ harbor_port }}"
     state: directory
     mode: "0755"
   tags: [cluster]
@@ -54,9 +55,9 @@
 - name: Template Harbor hosts.toml for containerd
   ansible.builtin.template:
     src: hosts.toml.j2
-    dest: "/etc/containerd/certs.d/{{ hostvars['localhost']['harbor_host_ip'] }}:{{ harbor_port }}/hosts.toml"
+    dest: "/etc/containerd/certs.d/{{ hostvars['localhost']['host_registry_host_ip'] }}:{{ harbor_port }}/hosts.toml"
     mode: "0644"
-  notify: restart containerd
+  notify: Restart Containerd
   tags: [cluster]
 
 # ---------------------------------------------------------------------------

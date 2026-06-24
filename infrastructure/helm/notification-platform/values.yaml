@@ -76,9 +76,9 @@ kafkaUI:
     enabled: false
     host: kafka-ui.local
 
-# ── MailHog (fake SMTP for local dev) ─────────────────────────────────────────
+# ── Mailpit (fake SMTP for local dev — replaces abandoned MailHog) ────────────
 mailhog:
-  image: mailhog/mailhog:v1.0.1
+  image: axllent/mailpit:v1.30.2
   resources:
     requests:
       memory: "64Mi"

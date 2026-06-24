@@ -41,6 +41,19 @@
   notify: Restart Containerd
   tags: [cluster]
 
+# containerd 2.x default config generates a colon-separated config_path
+# (e.g. '/etc/containerd/certs.d:/etc/docker/certs.d'). The CRI plugin fails
+# to resolve the registry hostname when a colon appears in both the path
+# separator and the host:port directory name, causing it to silently fall back
+# to HTTPS and ignore hosts.toml. Normalise to a single path.
+- name: Fix config_path to single directory so hosts.toml is found
+  ansible.builtin.replace:
+    path: /etc/containerd/config.toml
+    regexp: "config_path = '/etc/containerd/certs\\.d:[^']*'"
+    replace: "config_path = '/etc/containerd/certs.d'"
+  notify: Restart Containerd
+  tags: [cluster]
+
 # ---------------------------------------------------------------------------
 # 3. Configure registry for plain-HTTP pulls
 #    Uses the per-registry hosts.toml approach (containerd v1.6+)

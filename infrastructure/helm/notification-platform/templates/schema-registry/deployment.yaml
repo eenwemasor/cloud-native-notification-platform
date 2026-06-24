@@ -17,6 +17,7 @@ spec:
         {{- include "np.labels" . | nindent 8 }}
         {{- include "np.selectorLabels" "schema-registry" | nindent 8 }}
     spec:
+      enableServiceLinks: false
       containers:
         - name: schema-registry
           image: {{ .Values.schemaRegistry.image }}

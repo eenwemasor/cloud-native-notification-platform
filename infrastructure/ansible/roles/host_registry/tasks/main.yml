@@ -7,7 +7,7 @@
   register: host_registry_linux_bridge
   changed_when: false
   failed_when: false
-  when: ansible_system == 'Linux'
+  when: ansible_facts['system'] == 'Linux'
   tags: [registry]
 
 - name: Get primary IP on macOS (en0)
@@ -15,7 +15,7 @@
   register: host_registry_macos_ip
   changed_when: false
   failed_when: false
-  when: ansible_system == 'Darwin'
+  when: ansible_facts['system'] == 'Darwin'
   tags: [registry]
 
 - name: Set host_registry_host_ip fact (Linux)
@@ -26,14 +26,14 @@
          | map(attribute='local')
          | first }}
     cacheable: true
-  when: ansible_system == 'Linux'
+  when: ansible_facts['system'] == 'Linux'
   tags: [registry]
 
 - name: Set host_registry_host_ip fact (macOS)
   ansible.builtin.set_fact:
     host_registry_host_ip: "{{ host_registry_macos_ip.stdout | trim }}"
     cacheable: true
-  when: ansible_system == 'Darwin'
+  when: ansible_facts['system'] == 'Darwin'
   tags: [registry]
 
 - name: Show detected Harbor host IP
@@ -49,7 +49,7 @@
   register: host_registry_docker_info
   changed_when: false
   failed_when: false
-  when: ansible_system == 'Linux'
+  when: ansible_facts['system'] == 'Linux'
   tags: [registry]
 
 - name: Install Docker and Docker Compose plugin (Linux)
@@ -60,7 +60,7 @@
     state: present
     update_cache: true
   when:
-    - ansible_system == 'Linux'
+    - ansible_facts['system'] == 'Linux'
     - host_registry_docker_info.rc != 0
   tags: [registry]
 
@@ -69,13 +69,13 @@
     name: docker
     enabled: true
     state: started
-  when: ansible_system == 'Linux'
+  when: ansible_facts['system'] == 'Linux'
   tags: [registry]
 
 - name: Notice — macOS Docker Desktop required
   ansible.builtin.debug:
     msg: "macOS detected: ensure Docker Desktop is running before continuing."
-  when: ansible_system == 'Darwin'
+  when: ansible_facts['system'] == 'Darwin'
   tags: [registry]
 
 # ---------------------------------------------------------------------------

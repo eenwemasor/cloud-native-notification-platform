@@ -1,4 +1,5 @@
 ---
-- name: Restart Harbor
-  ansible.builtin.command: docker compose -f {{ harbor_install_dir }}/docker-compose.yml restart
+- name: Restart registry
+  ansible.builtin.command: >
+    docker compose -f {{ registry_compose_dir }}/docker-compose.yml up -d
   changed_when: true

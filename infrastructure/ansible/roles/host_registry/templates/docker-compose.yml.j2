@@ -1,0 +1,26 @@
+# Docker Compose for CNCF Distribution registry + Joxit UI
+# Managed by Ansible — do not edit manually.
+
+services:
+  registry:
+    image: registry:{{ registry_version }}
+    restart: unless-stopped
+    ports:
+      - "{{ registry_port }}:5000"
+    volumes:
+      - "{{ registry_data_dir }}:/var/lib/registry"
+      - "{{ registry_compose_dir }}/config.yml:/etc/distribution/config.yml:ro"
+
+  registry-ui:
+    image: joxit/docker-registry-ui:latest
+    restart: unless-stopped
+    ports:
+      - "{{ registry_ui_port }}:80"
+    environment:
+      SINGLE_REGISTRY: "true"
+      REGISTRY_TITLE: "Local Registry"
+      NGINX_PROXY_PASS_URL: "http://registry:5000"
+      DELETE_IMAGES: "true"
+      SHOW_CATALOG_NB_TAGS: "true"
+    depends_on:
+      - registry

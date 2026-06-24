@@ -42,20 +42,20 @@
   tags: [cluster]
 
 # ---------------------------------------------------------------------------
-# 3. Configure Harbor registry for plain-HTTP pulls
+# 3. Configure registry for plain-HTTP pulls
 #    Uses the per-registry hosts.toml approach (containerd v1.6+)
 # ---------------------------------------------------------------------------
-- name: Create containerd certs.d directory for Harbor
+- name: Create containerd certs.d directory for registry
   ansible.builtin.file:
-    path: "/etc/containerd/certs.d/{{ hostvars['localhost']['host_registry_host_ip'] }}:{{ harbor_port }}"
+    path: "/etc/containerd/certs.d/{{ hostvars['localhost']['host_registry_host_ip'] }}:{{ registry_port }}"
     state: directory
     mode: "0755"
   tags: [cluster]
 
-- name: Template Harbor hosts.toml for containerd
+- name: Template registry hosts.toml for containerd
   ansible.builtin.template:
     src: hosts.toml.j2
-    dest: "/etc/containerd/certs.d/{{ hostvars['localhost']['host_registry_host_ip'] }}:{{ harbor_port }}/hosts.toml"
+    dest: "/etc/containerd/certs.d/{{ hostvars['localhost']['host_registry_host_ip'] }}:{{ registry_port }}/hosts.toml"
     mode: "0644"
   notify: Restart Containerd
   tags: [cluster]

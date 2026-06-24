@@ -1,11 +1,11 @@
-# containerd registry configuration for Harbor (plain HTTP)
+# containerd registry configuration for plain-HTTP pulls
 # This file is managed by Ansible — do not edit manually.
 #
 # Instructs containerd to reach this registry over plain HTTP without
 # TLS verification. Suitable for local development only.
 
-server = "http://{{ hostvars['localhost']['host_registry_host_ip'] }}:{{ harbor_port }}"
+server = "http://{{ hostvars['localhost']['host_registry_host_ip'] }}:{{ registry_port }}"
 
-[host."http://{{ hostvars['localhost']['host_registry_host_ip'] }}:{{ harbor_port }}"]
+[host."http://{{ hostvars['localhost']['host_registry_host_ip'] }}:{{ registry_port }}"]
   capabilities = ["pull", "resolve"]
   skip_verify = true

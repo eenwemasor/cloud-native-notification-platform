@@ -19,7 +19,7 @@
 # ---------------------------------------------------------------------------
 - name: Wait for worker node to reach Ready state
   ansible.builtin.command: >
-    kubectl get node {{ ansible_hostname }}
+    kubectl get node {{ ansible_facts['hostname'] }}
     -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
   register: worker_ready_result
   until: worker_ready_result.stdout == "True"

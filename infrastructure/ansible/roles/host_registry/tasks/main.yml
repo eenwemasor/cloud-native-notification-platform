@@ -36,9 +36,9 @@
   when: ansible_facts['system'] == 'Darwin'
   tags: [registry]
 
-- name: Show detected Harbor host IP
+- name: Show detected registry host IP
   ansible.builtin.debug:
-    msg: "Harbor will be accessible at {{ host_registry_host_ip }}:{{ harbor_port }}"
+    msg: "Registry will be accessible at {{ host_registry_host_ip }}:{{ registry_port }} (UI at :{{ registry_ui_port }})"
   tags: [registry]
 
 # ---------------------------------------------------------------------------
@@ -79,103 +79,64 @@
   tags: [registry]
 
 # ---------------------------------------------------------------------------
-# 3. Download and extract the Harbor offline installer
+# 3. Create directories and render configuration
 # ---------------------------------------------------------------------------
-- name: Create Harbor installer directory
+- name: Create registry compose and data directories
   ansible.builtin.file:
-    path: "{{ harbor_installer_dir }}"
+    path: "{{ item }}"
     state: directory
     mode: "0755"
+  loop:
+    - "{{ registry_compose_dir }}"
+    - "{{ registry_data_dir }}"
   tags: [registry]
 
-- name: Download Harbor offline installer
-  ansible.builtin.get_url:
-    url: "https://github.com/goharbor/harbor/releases/download/v{{ harbor_version }}/harbor-offline-installer-v{{ harbor_version }}.tgz"
-    dest: "{{ harbor_installer_dir }}/harbor-offline-installer-v{{ harbor_version }}.tgz"
-    mode: "0644"
-  tags: [registry]
-
-- name: Extract Harbor installer
-  ansible.builtin.unarchive:
-    src: "{{ harbor_installer_dir }}/harbor-offline-installer-v{{ harbor_version }}.tgz"
-    dest: /opt/
-    remote_src: false
-    creates: "{{ harbor_install_dir }}/install.sh"
-  tags: [registry]
-
-# ---------------------------------------------------------------------------
-# 4. Template harbor.yml configuration
-# ---------------------------------------------------------------------------
-- name: Template harbor.yml
+- name: Template registry config.yml
   ansible.builtin.template:
-    src: harbor.yml.j2
-    dest: "{{ harbor_install_dir }}/harbor.yml"
-    mode: "0640"
-  notify: Restart Harbor
+    src: registry-config.yml.j2
+    dest: "{{ registry_compose_dir }}/config.yml"
+    mode: "0644"
+  notify: Restart registry
+  tags: [registry]
+
+- name: Template docker-compose.yml
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ registry_compose_dir }}/docker-compose.yml"
+    mode: "0644"
+  notify: Restart registry
   tags: [registry]
 
 # ---------------------------------------------------------------------------
-# 5. Start Harbor (idempotent — skip if harbor-core container is already up)
+# 4. Start the registry stack (idempotent — skip if registry is already up)
 # ---------------------------------------------------------------------------
-- name: Check if harbor-core container is running
-  ansible.builtin.command: docker inspect --format "{{ '{{' }}.State.Running{{ '}}' }}" harbor-core
-  register: host_registry_core_running
+- name: Check if registry container is running
+  ansible.builtin.command: docker inspect --format "{{ '{{' }}.State.Running{{ '}}' }}" registry
+  register: host_registry_container_running
   changed_when: false
   failed_when: false
   tags: [registry]
 
-- name: Run Harbor install.sh
-  ansible.builtin.command: ./install.sh
-  args:
-    chdir: "{{ harbor_install_dir }}"
+- name: Start registry stack with Docker Compose
+  ansible.builtin.command: >
+    docker compose -f {{ registry_compose_dir }}/docker-compose.yml up -d --pull missing
   when: >
-    host_registry_core_running.rc != 0 or
-    host_registry_core_running.stdout | trim != 'true'
+    host_registry_container_running.rc != 0 or
+    host_registry_container_running.stdout | trim != 'true'
   changed_when: >
-    host_registry_core_running.rc != 0 or
-    host_registry_core_running.stdout | trim != 'true'
+    host_registry_container_running.rc != 0 or
+    host_registry_container_running.stdout | trim != 'true'
   tags: [registry]
 
 # ---------------------------------------------------------------------------
-# 6. Wait for Harbor to be reachable
+# 5. Wait for the registry to be reachable
 # ---------------------------------------------------------------------------
-- name: Wait for Harbor portal to be reachable
+- name: Wait for registry /v2/ endpoint to be reachable
   ansible.builtin.uri:
-    url: "http://{{ host_registry_host_ip }}:{{ harbor_port }}"
-    status_code: [200, 301, 302]
-    follow_redirects: safe
+    url: "http://{{ host_registry_host_ip }}:{{ registry_port }}/v2/"
+    status_code: [200]
   register: host_registry_health
-  until: host_registry_health.status in [200, 301, 302]
+  until: host_registry_health.status == 200
   retries: 30
-  delay: 10
-  tags: [registry]
-
-# ---------------------------------------------------------------------------
-# 7. Create the 'local' Harbor project if it does not already exist
-# ---------------------------------------------------------------------------
-- name: Check if Harbor project exists
-  ansible.builtin.uri:
-    url: "http://{{ host_registry_host_ip }}:{{ harbor_port }}/api/v2.0/projects?name={{ harbor_project_name }}"
-    method: GET
-    user: admin
-    password: "{{ harbor_admin_password }}"
-    force_basic_auth: true
-    status_code: 200
-    return_content: true
-  register: host_registry_project_check
-  tags: [registry]
-
-- name: Create Harbor project '{{ harbor_project_name }}'
-  ansible.builtin.uri:
-    url: "http://{{ host_registry_host_ip }}:{{ harbor_port }}/api/v2.0/projects"
-    method: POST
-    user: admin
-    password: "{{ harbor_admin_password }}"
-    force_basic_auth: true
-    body_format: json
-    body:
-      project_name: "{{ harbor_project_name }}"
-      public: true
-    status_code: [201, 409]
-  when: (host_registry_project_check.json | length) == 0
+  delay: 5
   tags: [registry]

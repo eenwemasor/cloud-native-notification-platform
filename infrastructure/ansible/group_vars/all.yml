@@ -3,14 +3,12 @@
 k8s_version: "1.29"
 pod_network_cidr: "10.244.0.0/16"
 
-# Harbor registry
-harbor_version: "2.10.0"
-harbor_install_dir: "/opt/harbor"
-harbor_installer_dir: "/opt/harbor-installer"
-harbor_data_dir: "/opt/harbor/data"
-harbor_admin_password: "Harbor12345"
-harbor_project_name: "local"
-harbor_port: 80
+# CNCF Distribution registry + Joxit UI
+registry_version: "3.1.1"
+registry_port: 5000
+registry_ui_port: 5080
+registry_compose_dir: "{{ ansible_facts['env']['HOME'] }}/.registry"
+registry_data_dir: "{{ ansible_facts['env']['HOME'] }}/.registry/data"
 
 # SSH key used to connect to Multipass VMs.
 # The corresponding public key must be authorized on the VMs.

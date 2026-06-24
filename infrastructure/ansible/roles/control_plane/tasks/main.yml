@@ -57,7 +57,7 @@
 # ---------------------------------------------------------------------------
 - name: Wait for control-plane node to be Ready
   ansible.builtin.command: >
-    kubectl get node {{ ansible_hostname }}
+    kubectl get node {{ ansible_facts['hostname'] }}
     -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
   register: control_plane_node_ready
   until: control_plane_node_ready.stdout == "True"

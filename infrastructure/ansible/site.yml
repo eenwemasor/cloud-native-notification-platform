@@ -1,6 +1,6 @@
 ---
-# Play 1: Install and start Harbor on the host machine
-- name: Setup host Harbor registry
+# Play 1: Deploy CNCF Distribution registry + Joxit UI on the host machine
+- name: Setup host registry
   hosts: local
   gather_facts: true
   roles:
@@ -8,7 +8,7 @@
       tags: [registry]
 
 # Play 2: Provision Multipass VMs and populate dynamic inventory
-# Must run after Play 1 so harbor_host_ip is available in hostvars['localhost']
+# Must run after Play 1 so host_registry_host_ip is available in hostvars['localhost']
 - name: Provision Multipass VMs
   hosts: local
   gather_facts: false

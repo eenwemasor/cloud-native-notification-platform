@@ -48,7 +48,7 @@ spec:
             - name: KAFKA_TRANSACTION_STATE_LOG_MIN_ISR
               value: "1"
             - name: KAFKA_AUTO_CREATE_TOPICS_ENABLE
-              value: "false"
+              value: "true"
             - name: CLUSTER_ID
               value: {{ .Values.kafka.clusterId | quote }}
           resources:

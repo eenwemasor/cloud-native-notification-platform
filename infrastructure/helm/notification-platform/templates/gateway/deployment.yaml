@@ -22,6 +22,14 @@ spec:
         {{- include "np.labels" . | nindent 8 }}
         {{- include "np.selectorLabels" "gateway" | nindent 8 }}
     spec:
+      serviceAccountName: notification-platform
+      initContainers:
+        - name: wait-for-kafka
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z kafka 9092; do echo 'waiting for kafka...'; sleep 3; done"]
+        - name: wait-for-schema-registry
+          image: busybox:1.36
+          command: ["sh", "-c", "until wget -qO- http://schema-registry:8081/subjects; do echo 'waiting for schema-registry...'; sleep 3; done"]
       containers:
         - name: gateway
           image: {{ .Values.gateway.image.repository }}:{{ .Values.gateway.image.tag }}

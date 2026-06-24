@@ -1,0 +1,32 @@
+apiVersion: skaffold/v4beta11
+kind: Config
+metadata:
+  name: notification-platform
+
+build:
+  local:
+    push: true
+  artifacts:
+    - image: localhost:5000/notifications/gateway
+      context: gateway
+      docker:
+        dockerfile: Dockerfile
+    - image: localhost:5000/notifications/email-service
+      context: email-service
+      docker:
+        dockerfile: Dockerfile
+
+deploy:
+  helm:
+    releases:
+      - name: notification-platform
+        chartPath: infrastructure/helm/notification-platform
+        namespace: notification-platform
+        createNamespace: true
+        setValueTemplates:
+          gateway.image.repository: "{{.IMAGE_REPO_localhost_5000_notifications_gateway}}"
+          gateway.image.tag: "{{.IMAGE_TAG_localhost_5000_notifications_gateway}}"
+          gateway.image.pullPolicy: Always
+          emailService.image.repository: "{{.IMAGE_REPO_localhost_5000_notifications_email_service}}"
+          emailService.image.tag: "{{.IMAGE_TAG_localhost_5000_notifications_email_service}}"
+          emailService.image.pullPolicy: Always

@@ -17,6 +17,7 @@ spec:
         {{- include "np.labels" . | nindent 8 }}
         {{- include "np.selectorLabels" "kafka" | nindent 8 }}
     spec:
+      serviceAccountName: notification-platform
       containers:
         - name: kafka
           image: {{ .Values.kafka.image }}
@@ -47,7 +48,7 @@ spec:
             - name: KAFKA_TRANSACTION_STATE_LOG_MIN_ISR
               value: "1"
             - name: KAFKA_AUTO_CREATE_TOPICS_ENABLE
-              value: "true"
+              value: "false"
             - name: CLUSTER_ID
               value: {{ .Values.kafka.clusterId | quote }}
           resources:
@@ -69,4 +70,9 @@ spec:
               mountPath: /var/lib/kafka/data
       volumes:
         - name: kafka-data
+          {{- if .Values.kafka.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: kafka-data
+          {{- else }}
           emptyDir: {}
+          {{- end }}

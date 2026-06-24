@@ -13,6 +13,11 @@ gateway:
     limits:
       memory: "256Mi"
       cpu: "500m"
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 70
 
 # ── Email service ──────────────────────────────────────────────────────────────
 emailService:
@@ -33,6 +38,10 @@ emailService:
 kafka:
   image: apache/kafka-native:latest
   clusterId: "MkU3OEVBNTcwNTJENDM2Qk"
+  persistence:
+    enabled: false
+    storageClass: ""
+    size: "5Gi"
   resources:
     requests:
       memory: "256Mi"
@@ -52,6 +61,21 @@ schemaRegistry:
       memory: "512Mi"
       cpu: "500m"
 
+# ── Kafka UI ───────────────────────────────────────────────────────────────────
+kafkaUI:
+  enabled: true
+  image: ghcr.io/kafbat/kafka-ui:main
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "500m"
+  ingress:
+    enabled: false
+    host: kafka-ui.local
+
 # ── MailHog (fake SMTP for local dev) ─────────────────────────────────────────
 mailhog:
   image: mailhog/mailhog:v1.0.1
@@ -62,12 +86,22 @@ mailhog:
     limits:
       memory: "128Mi"
       cpu: "100m"
+  ingress:
+    enabled: true
+    host: mailhog.local
 
 # ── SMTP config passed to email-service ───────────────────────────────────────
 smtp:
   host: mailhog
   port: "1025"
   from: "notifications@example.com"
+  auth:
+    enabled: false
+    # username and password are read from a Secret when auth.enabled is true.
+    # Create the Secret manually or via external-secrets before deploying.
+    secretName: smtp-credentials
+    usernameKey: username
+    passwordKey: password
 
 # ── Ingress ───────────────────────────────────────────────────────────────────
 ingress:

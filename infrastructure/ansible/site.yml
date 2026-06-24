@@ -50,3 +50,30 @@
   roles:
     - role: worker
       tags: [workers]
+
+# Play 6: Merge the cluster kubeconfig into the host's ~/.kube/config
+# Depends on Play 4 having fetched the kubeconfig to ~/.kube/config-multipass.
+# After this play, `kubectl get nodes` works from the host without extra flags.
+- name: Configure host kubectl
+  hosts: local
+  gather_facts: false
+  vars:
+    kubeconfig_dir: "{{ lookup('env', 'HOME') }}/.kube"
+  tasks:
+    - name: Ensure ~/.kube directory exists
+      ansible.builtin.file:
+        path: "{{ kubeconfig_dir }}"
+        state: directory
+        mode: "0700"
+      tags: [kubeconfig]
+
+    - name: Merge multipass kubeconfig into ~/.kube/config
+      ansible.builtin.shell: |
+        KUBECONFIG="{{ kubeconfig_dir }}/config:{{ kubeconfig_dir }}/config-multipass" \
+          kubectl config view --flatten > "{{ kubeconfig_dir }}/config.merge-tmp"
+        mv "{{ kubeconfig_dir }}/config.merge-tmp" "{{ kubeconfig_dir }}/config"
+        chmod 600 "{{ kubeconfig_dir }}/config"
+      args:
+        executable: /bin/bash
+      changed_when: true
+      tags: [kubeconfig]
